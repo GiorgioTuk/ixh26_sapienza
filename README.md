@@ -60,6 +60,29 @@ python -m sim.capture --no-anchor          # offline capture: no T1
 
 Each capture is written to `out/captures/<id>/`: `capture.json` (metadata, manifests, signatures, T0/T1), `raw.npy` (raw frame) and `debug_scene.png` (simulation-only ground truth). `out/` holds private keys and is git-ignored.
 
+### Phase 2a: open verification
+
+Replaces Apple's Private Cloud Compute checks: anyone with the CA root certificates and access to an XRPL node can run it. It trusts the ledger, not the bundle's own T0/T1 claims.
+
+```bash
+python -m sim.verify                 # latest capture; writes verification.json next to it
+python -m sim.verify <capture-id>
+python -m sim.verify --offline       # skip the on-chain time checks
+python -m sim.tamper all             # build tampered copies and verify each one
+```
+
+Checks: bundle format, raw frame vs metadata and hash, manifest signed by CA 3, sensor cert by CA 1, enclave cert by CA 2, same-device binding, embedded digest, σs, σe, T0 ledger on-chain, T1 anchor = commitment(σe), T1 claims vs chain, T0 before T1. Verdict: `VERIFIED`, `VERIFIED WITH WARNINGS` (e.g. offline capture without T1) or `REJECTED`.
+
+| Attack (`sim.tamper`) | Caught by |
+|---|---|
+| `raw-bit`: flip one bit of the raw frame | Raw SHA-256, σs |
+| `os-meta`: change zoom after signing | σe |
+| `backdate`: claim a real but older T0 ledger | Embedded digest |
+| `fake-sensor`: edited image signed with an uncertified key | Manifest (CA 3), sensor cert (CA 1), embedded digest, σe |
+| `replay-t1`: reuse another capture's anchor | T1 anchor = commitment(σe) |
+
+The timestamp scheme lives in `sim/timestamps.py` (`acquire_t0`, `anchor_t1`, `verify_window`), so it can be replaced without touching capture or verification. Revocation is not implemented yet.
+
 ### Project layout
 
 ```
@@ -74,6 +97,11 @@ sim/
   scene.py          synthetic scene or photo as linear light
   device.py         Phase 1 entities: Sensor, SecureEnclave, Device
   capture.py        Phase 1 capture flow and secure-negative bundle
+  timestamps.py     T0/T1 scheme: acquire, anchor, verify on XRPL
+  report.py         check results and verdict
+  verifier.py       Phase 2a checks (certificates, signatures, digest, time window)
+  verify.py         verification CLI, writes verification.json
+  tamper.py         attack simulations against a capture
 ```
 
 ## Team
@@ -96,3 +124,4 @@ As required by the hackathon rules, we declare every AI tool used, how and where
 | Claude (Anthropic) | Repository setup, planning | This repository |
 | Claude (Anthropic) | Simulation environment setup code (Testnet wallets, memo anchoring, checks) | `sim/`, `requirements.txt` |
 | Claude (Anthropic) | Phase 1 capture simulator (factory, sensor/enclave signatures, T0/T1 on XRPL) | `sim/crypto.py`, `protocol.py`, `factory.py`, `scene.py`, `device.py`, `capture.py` |
+| Claude (Anthropic) | Phase 2a verifier and attack simulations | `sim/timestamps.py`, `report.py`, `verifier.py`, `verify.py`, `tamper.py` |

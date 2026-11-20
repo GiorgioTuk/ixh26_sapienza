@@ -41,8 +41,9 @@ def anchor_memo(client: JsonRpcClient, wallet: Wallet, memo_type: str, data: str
     return _summary(submit_and_wait(tx, client, wallet).result)
 
 
-def lookup_tx(client: JsonRpcClient, tx_hash: str) -> dict:
-    return _summary(client.request(Tx(transaction=tx_hash)).result)
+def lookup_tx(client: JsonRpcClient, tx_hash: str) -> dict | None:
+    response = client.request(Tx(transaction=tx_hash))
+    return _summary(response.result) if response.is_successful() else None
 
 
 def _summary(result: dict) -> dict:

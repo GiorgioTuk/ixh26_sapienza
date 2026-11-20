@@ -11,9 +11,10 @@ from sim.config import EXPLORER_TX_URL, OUT_DIR, role_seed
 from sim.crypto import sha256_hex
 from sim.device import Device
 from sim.factory import DEVICES_DIR
-from sim.ledger import anchor_memo, get_client, latest_validated_ledger
-from sim.protocol import BUNDLE_FORMAT, COMMITMENT_MEMO_TYPE, commitment
+from sim.ledger import get_client
+from sim.protocol import BUNDLE_FORMAT
 from sim.scene import load_image, save_srgb, synthetic_scene
+from sim.timestamps import acquire_t0, anchor_t1
 
 CAPTURES_DIR = OUT_DIR / "captures"
 
@@ -41,7 +42,7 @@ def main() -> None:
     client = get_client()
     scene = load_image(args.image) if args.image else synthetic_scene()
 
-    t0 = latest_validated_ledger(client)
+    t0 = acquire_t0(client)
     raw, record = device.capture(scene, t0)
 
     if args.no_anchor:
@@ -50,13 +51,7 @@ def main() -> None:
         seed = role_seed("device")
         if not seed:
             raise SystemExit("device wallet missing: run python -m sim.setup_wallets")
-        wallet = Wallet.from_seed(seed)
-        c = commitment(record["signatures"]["enclave"])
-        sent = anchor_memo(client, wallet, COMMITMENT_MEMO_TYPE, c)
-        if not (sent["validated"] and sent["result"] == "tesSUCCESS"):
-            raise SystemExit(f"anchoring failed: {sent}")
-        record["t1"] = {"commitment": c, "tx_hash": sent["hash"], "ledger_index": sent["ledger_index"],
-                        "close_time": sent["close_time"], "anchored_by": wallet.address}
+        record["t1"] = anchor_t1(client, Wallet.from_seed(seed), record["signatures"]["enclave"])
 
     capture_id = record["os_meta"]["capture_id"]
     out = CAPTURES_DIR / capture_id
