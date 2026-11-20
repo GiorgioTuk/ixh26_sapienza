@@ -16,6 +16,9 @@ venv/
 secrets/
 wallets/
 
+# Simulation output: factory/device private keys, captures
+out/
+
 # Editors / OS
 .vscode/
 .idea/
