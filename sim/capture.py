@@ -35,12 +35,17 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--device", help="device id (default: last provisioned)")
     parser.add_argument("--image", type=Path, help="photo to use as the scene (default: synthetic)")
+    parser.add_argument("--size", default="1920x1080",
+                        help="raw frame WxH, even numbers (default Full HD; e.g. 5664x4248 for ~24 MP 4:3)")
     parser.add_argument("--no-anchor", action="store_true", help="simulate an offline capture: no T1")
     args = parser.parse_args()
 
+    width, height = (int(v) for v in args.size.lower().split("x"))
+    if width % 2 or height % 2:
+        raise SystemExit("--size must use even numbers (2x2 Bayer pattern)")
     device = Device.load(pick_device(args.device))
     client = get_client()
-    scene = load_image(args.image) if args.image else synthetic_scene()
+    scene = load_image(args.image, width, height) if args.image else synthetic_scene(height, width)
 
     t0 = acquire_t0(client)
     raw, record = device.capture(scene, t0)

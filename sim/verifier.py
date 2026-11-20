@@ -13,7 +13,7 @@ from sim.crypto import canonical, load_cert, sha256_hex, verify
 from sim.factory import CAS, FACTORY_DIR
 from sim.protocol import BUNDLE_FORMAT, embedded_digest, enclave_payload, sensor_payload
 from sim.report import FAIL, OK, SKIP, WARN, Check, check
-from sim.timestamps import verify_window
+from sim.timestamps import OFFLINE, verify_window
 
 
 def load_trust_roots(directory: Path = FACTORY_DIR) -> dict[str, x509.Certificate]:
@@ -73,7 +73,7 @@ def verify_capture(bundle: dict, raw: np.ndarray, roots: dict[str, x509.Certific
               "σs + OS metadata signed by the enclave", "enclave signature does not match σs + OS metadata"),
     ]
     if client is None:
-        checks.append(Check("Time window (T0, T1)", WARN, "offline verification: capture time not checked"))
+        checks.append(Check(OFFLINE, WARN, "offline verification: capture time not checked"))
     else:
         checks += verify_window(client, bundle["t0"], bundle["t1"], sigs["enclave"])
     checks.append(Check("Revocation", SKIP, "not implemented yet (task 6)"))

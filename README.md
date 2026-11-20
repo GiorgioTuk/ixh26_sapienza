@@ -45,8 +45,9 @@ No public Apple Reference Image samples exist, so capture is simulated with ECDS
 
 ```bash
 python -m sim.factory                      # 3 CAs (once) + provision a new device
-python -m sim.capture                      # synthetic scene, T0 + T1 from the XRPL Testnet
-python -m sim.capture --image photo.jpg    # use any photo as the scene
+python -m sim.capture                      # Full HD 1920x1080 synthetic scene, T0 + T1 from the XRPL Testnet
+python -m sim.capture --image photo.jpg    # use any photo as the scene (cropped to the frame size)
+python -m sim.capture --size 5664x4248     # ~24 MP 4:3 frame (Apple supports 12, 24 and 48 MP)
 python -m sim.capture --no-anchor          # offline capture: no T1
 ```
 
@@ -83,6 +84,27 @@ Checks: bundle format, raw frame vs metadata and hash, manifest signed by CA 3, 
 
 The timestamp scheme lives in `sim/timestamps.py` (`acquire_t0`, `anchor_t1`, `verify_window`), so it can be replaced without touching capture or verification. Revocation is not implemented yet.
 
+### Phase 2b: development and reference signature
+
+```bash
+python -m sim.attest                        # verify, develop, sign -> reference.jpg + reference.json
+python -m sim.check_reference <capture-id>  # client-side check of reference.jpg (or pass a JPEG path)
+```
+
+Follows the parameters of Apple's white paper (*Apple Reference Image*, September 2026):
+
+| Step | Apple | This simulation |
+|---|---|---|
+| Gate | Develop only if digest, σs, σe, CA chains and same-device binding verify | Same; integrity failures stop development |
+| Time bounds | Bad lower bound → March 31, 2026; missing/bad upper bound → development time | Same fallbacks, bounds taken from the XRPL ledgers |
+| Development | Demosaicing, tone mapping, related corrections (closed, inside PCC) | Open, integer-only `ixh26-develop/1`: black level, gray-world WB (Q12), Hamilton-Adams demosaicing, sRGB LUT |
+| Commitment | JPEG hashed; the hash is signed and gives the photo GUID | SHA-256 of the JPEG (with its reference metadata); GUID = first 128 bits |
+| Final signature | Composite MLDSA87-RSA-3072-PSS-SHA512, embedded in the JPEG | Same scheme (both must verify), embedded in an APP11 segment |
+| Confidence score | Neural network with hidden weights | Not implemented |
+| Client check | Verify the final signature, check GUID not revoked | Commitment, GUID, composite signature, bit-identical re-development; revocation not implemented |
+
+The development is deterministic: re-running it on the same raw gives bit-identical pixels, so anyone holding the secure negative can check that the reference JPEG really comes from it. The reference metadata carries no device identifier. Hamilton-Adams was chosen over Malvar-He-Cutler because the latter's patent (US 7,502,505) is active until 2027-01-25, while Hamilton-Adams' (US 5,629,734) has expired. Not stated by Apple and assumed here: 12-bit RGGB raw, JPEG quality 92.
+
 ### Project layout
 
 ```
@@ -102,6 +124,11 @@ sim/
   verifier.py       Phase 2a checks (certificates, signatures, digest, time window)
   verify.py         verification CLI, writes verification.json
   tamper.py         attack simulations against a capture
+  develop.py        Phase 2b open, deterministic raw development
+  service.py        composite ML-DSA-87 + RSA-3072-PSS-SHA512 signing service
+  jpeg_container.py embed/strip the signature segment in a JPEG
+  attest.py         Phase 2 attestation CLI: verify, develop, sign the reference JPEG
+  check_reference.py client-side check of a reference JPEG
 ```
 
 ## Team
@@ -125,3 +152,4 @@ As required by the hackathon rules, we declare every AI tool used, how and where
 | Claude (Anthropic) | Simulation environment setup code (Testnet wallets, memo anchoring, checks) | `sim/`, `requirements.txt` |
 | Claude (Anthropic) | Phase 1 capture simulator (factory, sensor/enclave signatures, T0/T1 on XRPL) | `sim/crypto.py`, `protocol.py`, `factory.py`, `scene.py`, `device.py`, `capture.py` |
 | Claude (Anthropic) | Phase 2a verifier and attack simulations | `sim/timestamps.py`, `report.py`, `verifier.py`, `verify.py`, `tamper.py` |
+| Claude (Anthropic) | Phase 2b development pipeline, composite signature, reference JPEG checks; algorithm and patent research | `sim/develop.py`, `service.py`, `jpeg_container.py`, `attest.py`, `check_reference.py` |
