@@ -3,7 +3,7 @@
   python -m decima.capture.tokens buy <n>    pay n tokens on-chain, get them blind-signed
   python -m decima.capture.tokens list       unspent tokens held by the user
 
-The purchase is linkable to the user's account, the redemption is not: the proxy signed blinded nonces."""
+Paying for the tokens is linkable to the user's account, the redemption is not: the proxy signed blinded nonces."""
 
 import argparse
 import json

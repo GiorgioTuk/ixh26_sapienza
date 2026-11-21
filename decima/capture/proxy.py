@@ -2,8 +2,8 @@
 
 - Sells prepaid tokens: the user pays on-chain, the proxy blind-signs the user's blinded nonces.
 - Behind an OHTTP gateway, receives {C, token}: checks the token signature and that it was never spent,
-  then publishes C on-chain from its own account. It never learns who sent C (OHTTP) nor which purchase
-  paid for it (blind signature); on-chain, every C comes from the same proxy account.
+  then publishes C on-chain from its own account. It never learns who sent C (OHTTP) nor which payment
+  funded it (blind signature); on-chain, every C comes from the same proxy account.
 The ledger M containing the proxy's transaction is T1."""
 
 import json

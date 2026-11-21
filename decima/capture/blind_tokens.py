@@ -2,7 +2,7 @@
 
 RSA blind signatures, RFC 9474, variant RSABSSA-SHA384-PSS-Deterministic: the proxy signs blinded token
 nonces when they are bought, the user unblinds them, and at redemption the proxy sees a valid signature it
-cannot link to any purchase. The final token signature is a standard RSASSA-PSS signature (SHA-384, MGF1-SHA-384,
+cannot link to any payment. The final token signature is a standard RSASSA-PSS signature (SHA-384, MGF1-SHA-384,
 48-byte salt), so it is verified with the standard library call."""
 
 import hashlib

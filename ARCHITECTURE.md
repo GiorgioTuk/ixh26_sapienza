@@ -103,7 +103,6 @@ The current backend is a **simulation**. It checks the statement and emits an HM
 | Device hardware | Keys in files; the sensor and Secure Enclave are Python objects |
 | OHTTP | RFC 9458 messages, but relay and gateway run in-process (no network); the client address is a placeholder |
 | Smart-contract verifier | Not implemented (the Testnet has no smart contracts) |
-| Purchase check | Not implemented (team decision) |
 
 ## Running
 

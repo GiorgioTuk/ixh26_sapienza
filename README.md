@@ -79,7 +79,6 @@ python -m decima.setup revoke <device> sensor  # a manufacturer revokes a key
 |---|---|
 | Real Longfellow proof | Longfellow has no ready circuit for this statement and writing one in C++ did not fit the hackathon. `decima/attestation/proof_system.py` simulates it: it checks the exact statement (`statement.py`) and emits an HMAC under a simulator key, so it is not zero-knowledge in the cryptographic sense and not publicly verifiable. A real backend replaces only that file. |
 | Smart-contract verifier | The XRPL Testnet has no smart-contract amendment (no WASM or Hooks), so verification runs off-chain with `decima.verification`. |
-| Check at purchase | The device being registered on-chain at purchase is left to the buyer and not simulated; registration itself is (`decima.setup device`). |
 | Real hardware | The photo sensor and the Secure Enclave are Python objects with keys in files. |
 | Real network for OHTTP | Messages follow RFC 9458 / 9292 / 9180 byte for byte, but relay and gateway run in the same process and the client address is a placeholder. |
 
