@@ -157,10 +157,11 @@ sim/
 
 ## Team
 
-| Name | Role |
-|---|---|
-| Giorgio | Implementation & pitch |
-| _TBD_ | _TBD_ |
+| Name |
+|---|
+| Giorgio Tuccinardi|
+| Leonardo Vona |
+| Leonardo Rufini |
 
 ## Third-party libraries & pre-existing work
 
