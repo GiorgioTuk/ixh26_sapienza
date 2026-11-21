@@ -4,15 +4,34 @@ Project for the **IXH26 Italian XRPL Hackathon** (Bari, 20–21 November 2026), 
 
 > Challenge: design a secure protocol that generalises to any device and guarantees authentic photo origin via decentralised blockchain technology (XRP Ledger).
 
-## Problem
-
-_TBD_
-
 ## Solution
 
-_TBD_
+#### Setup
+We keep the photo sensor and the Secure Enclave. The sensor and Secure Enclave keys and the device manifest are certified by the hardware manufacturers and assemblers: they are the only ones able to do so and, since this is hardware production, this phase cannot be decentralized. The roots of trust for verification (admitted manufacturers and key registries) are instead published on-chain, where they remain publicly verifiable and immutable: they are therefore decentralized, censorship-resistant and cannot be modified by any authority. If, at the time of purchase, the device is not registered on-chain, the user returns it.
 
-## Architecture
+#### Capture
+T0 is the hash of ledger N: it is necessarily subsequent to the publication of N, which provides a temporal lower bound, as in Apple. As in Apple, we keep the creation of the frame, σs and σe. We then send on-chain the commitment C = H(σe): the ledger M that includes it, within x ledgers of N, constitutes our T1. Finally, we generate the DNG file.
+
+#### Attestation
+The user generates a zero-knowledge proof with Longfellow (based on Ligero), optimized for SHA-256 and ECDSA signatures.
+Public inputs: SHA256(raw_frame), T0, T1, pk_man, R_s, R_e, R_rev_s, R_rev_e.
+Claim:
+- H(T0 ‖ dev_manifest ‖ boot_manifest) = raw_frame[slot];
+- σs is valid under the sensor key contained in the manifest;
+- σe is valid under the Secure Enclave key contained in the same manifest;
+- the manifest signature is valid: ECDSA.verify(pk_man, H(manifest), σ_man);
+- C = H(σe);
+- sensor and Secure Enclave are registered by their respective manufacturers: H(pk_s) ∈ R_s, H(pk_e) ∈ R_e (Merkle tree);
+- the keys are not revoked: H(pk_s) ∉ R_rev_s, H(pk_e) ∉ R_rev_e (indexed Merkle tree).
+
+#### Verification
+The user sends the photo, the raw and the proof. The verifier computes the hash of the raw and checks that:
+- the proof is valid and its public input matches the computed hash;
+- the circuit hash, pk_man and roots R_s, R_e, R_rev_s, R_rev_e are the valid ones on-chain;
+- T0 is the hash of ledger N, T1 is included in ledger M and M − N ≤ x;
+- processing the raw with the declared pipeline, among the admitted ones, yields exactly the JPEG photo.
+
+A verifier without these means can rely on a smart contract. To publish anonymously, the user can remove the metadata from the raw.
 
 _TBD_
 
