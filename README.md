@@ -70,6 +70,42 @@ python -m decima.setup revoke <device> sensor  # a manufacturer revokes a key
 
 **The zero-knowledge proof is simulated** (`decima/attestation/proof_system.py`): the statement is implemented exactly (`statement.py`), but the proof is an HMAC under a simulator key, not a Longfellow/Ligero proof. A real backend replaces only `proof_system.py`.
 
+## Implementation scope, assumptions and design choices
+
+### Not implemented, and why
+
+| Item | Why |
+|---|---|
+| Real Longfellow proof | Longfellow has no ready circuit for this statement and writing one in C++ did not fit the hackathon. `decima/attestation/proof_system.py` simulates it: it checks the exact statement (`statement.py`) and emits an HMAC under a simulator key, so it is not zero-knowledge in the cryptographic sense and not publicly verifiable. A real backend replaces only that file. |
+| Smart-contract verifier | The XRPL Testnet has no smart-contract amendment (no WASM or Hooks), so verification runs off-chain with `decima.verification`. |
+| Check at purchase | The device being registered on-chain at purchase is left to the buyer and not simulated; registration itself is (`decima.setup device`). |
+| Real hardware | The photo sensor and the Secure Enclave are Python objects with keys in files. |
+| Real network for OHTTP | Messages follow RFC 9458 / 9292 / 9180 byte for byte, but relay and gateway run in the same process and the client address is a placeholder. |
+
+### Assumed true
+
+- **Trust root**: it is pre-existing and out of scope. One account publishes the admitted manufacturers, circuit hashes, pipelines and dev_params once; who governs it is not modelled.
+- **Hardware and manufacturers**: the sensor signs only what it captures, sensor and Secure Enclave keys cannot be extracted, and manufacturers register only genuine keys.
+- **Anonymity of the channel**: the OHTTP relay and the proxy do not collude.
+- **Ledger history**: the history stays available to verifiers. The Testnet is reset from time to time, which erases demo data.
+- **JPEG encoder**: verifiers use the same JPEG encoder build (Pillow pinned in `requirements.txt`), because the photo is compared byte for byte.
+
+### Design choices
+
+- **x = 20 ledgers**, about one minute: enough for OHTTP and the proxy to publish C.
+- **Raw frame**: `raw_pix` as little-endian uint16, then a fixed 59-byte metadata block. dev_params are width, height, CFA, bit depth, black level and white level; frame counter, exposure, gain and the digest slot stay private.
+- **S and tail**: computed with a resumable SHA-256 in pure Python, because `hashlib` does not expose its state (about 6 s for Full HD). With S and tail the circuit needs 192 SHA-256 blocks instead of about 65,000.
+- **Registries**: fixed-depth (20) SHA-256 Merkle trees for R_s and R_e and indexed Merkle trees for R_rev_s and R_rev_e, with domain-separated leaves and nodes.
+  - The roots go in the makers' DIDs. DID Data is capped at 128 bytes, hence a binary layout.
+  - The added leaves go in memos of the same transaction, so anyone can rebuild the trees.
+- **Valid roots**: a verifier accepts any R_s / R_e an admitted maker ever published (registries only grow), but only the current R_rev. Consequence: any revocation by a maker invalidates the earlier proofs of all its devices, which must be regenerated.
+- **Prepaid tokens**: RSA blind signatures (RFC 9474, RSABSSA-SHA384-PSS-Deterministic), bought with an on-chain payment of 0.01 XRP each. The proxy keeps the list of spent tokens.
+- **HPKE**: written out for OHTTP, because the response needs the HPKE secret export. It is tested against the `cryptography` implementation.
+- **Publication of C**: the proxy publishes each C right away in a memo of its own transaction. The user sends that transaction as T1, and the verifier accepts any validated transaction containing C.
+- **DNG**: written with `tifffile`. The secure-negative data sits in the DNGPrivateData tag and never leaves the device; the published `raw.dng` holds only the pixels and the dev_params tags.
+- **Pipeline**: integer-only and deterministic (Hamilton-Adams demosaicing; Malvar-He-Cutler avoided because its patent is active until 2027).
+- **Identifiers**: the pipeline ID and the circuit ID are hashes of the code, so after changing `develop.py` or the statement the trust root must be published again.
+
 ## Team
 
 | Name |
@@ -78,20 +114,15 @@ python -m decima.setup revoke <device> sensor  # a manufacturer revokes a key
 | Leonardo Vona |
 | Leonardo Rufini |
 
-## Third-party libraries & pre-existing work
-
-_TBD_
-
 ## AI usage disclosure
 
-As required by the hackathon rules, we declare every AI tool used, how and where.
+As required by the hackathon rules, we declare every AI tool used, how and where. The protocol design in the *Solution* section is the team's own.
 
-| Tool | Used for | Where |
-|---|---|---|
-| Claude (Anthropic) | Repository setup, planning | This repository |
-| Claude (Anthropic) | Simulation environment setup code (Testnet wallets, memo anchoring, checks) | `sim/`, `requirements.txt` |
-| Claude (Anthropic) | Phase 1 capture simulator (factory, sensor/enclave signatures, T0/T1 on XRPL) | `sim/crypto.py`, `protocol.py`, `factory.py`, `scene.py`, `device.py`, `capture.py` |
-| Claude (Anthropic) | Phase 2a verifier and attack simulations | `sim/timestamps.py`, `report.py`, `verifier.py`, `verify.py`, `tamper.py` |
-| Claude (Anthropic) | Phase 2b development pipeline, composite signature, reference JPEG checks; algorithm and patent research | `sim/develop.py`, `service.py`, `jpeg_container.py`, `attest.py`, `check_reference.py` |
-| Claude (Anthropic) | Review of the solution design against Apple's core requirements and the track slides | Solution design, pitch |
-| Claude (Anthropic) | Implementation of the solution README, code organisation and documentation | `decima/`, `ARCHITECTURE.md`, sector READMEs |
+| Tool | Category | How it was used | Where |
+|---|---|---|---|
+| Claude (Anthropic), in Claude Code | Code generation | Implementation of the protocol described in *Solution*: XRPL interaction (DIDs, memos, payments), key and revocation registries (Merkle and indexed Merkle trees), sensor and Secure Enclave simulation, Oblivious HTTP, prepaid blind tokens, the proxy, DNG files, resumable SHA-256, the statement and the simulated proof system, the development pipeline, the verifier and the end-to-end demo | `decima/`, `requirements.txt`, `.env.example` |
+| Claude (Anthropic), in Claude Code | Repository and file-system structure | Organisation of the code into one package per protocol phase plus shared building blocks, module boundaries and dependency direction, git-ignore rules for secrets and simulation output | `decima/` layout, `.gitignore` |
+| Claude (Anthropic), in Claude Code | Tests | End-to-end demo that runs the whole protocol on the XRPL Testnet step by step and checks each outcome, including attack scenarios (tampered photo, revoked key) | `decima/demo.py` |
+| Claude (Anthropic), in Claude Code | Documentation | Architecture document, one README per code sector, the *Getting started* and *Implementation scope* sections of this README, the license header | `ARCHITECTURE.md`, `decima/README.md`, `decima/*/README.md`, `README.md`, `LICENSE.md` |
+
+An earlier prototype of the simulation, also written with Claude, was replaced by the current code and is no longer in the repository.
