@@ -34,9 +34,15 @@ The circuit never hashes the megabytes of pixels. SHA-256 reads its input in 64-
 #### Verification
 The user sends the JPEG photo, the raw pixels, dev_params, T1 (the transaction containing C) and the proof; the metadata never leaves the device. The verifier runs SHA-256 over the pixels up to state S and checks that:
 - the proof is valid for the public inputs, with S and tail computed by the verifier itself;
-- the circuit hash, pk_man and roots R_s, R_e, R_rev_s, R_rev_e are the valid ones on-chain;
+- the circuit hash, pk_man and roots R_s, R_e are the valid ones on-chain, and R_rev_s, R_rev_e are the revocation roots required by the chosen verification mode;
 - T0 is the hash of ledger N, C is in a transaction of ledger M (T1) and 0 < M − N ≤ x;
 - dev_params and the declared pipeline are among the admitted ones, and developing the pixels with them yields exactly the JPEG photo.
+
+The verifier chooses one of two verification modes, which differ only in the revocation roots they accept:
+- **capture-time verification**: R_rev_s, R_rev_e must be the roots valid at ledger M, so the keys were not revoked when the photo was anchored. A proof generated against these roots never expires: it can be generated once and reused.
+- **current-status verification**: R_rev_s, R_rev_e must be the current roots, so revocations made after capture also apply, retroactively. The proof must be generated on demand, since every new revocation changes the current roots.
+
+The circuit is the same in both modes. Revocations are only ever added, so a proof generated against the current roots satisfies both modes. The mode is chosen by the verifier, not by the prover.
 
 ## Getting started
 
