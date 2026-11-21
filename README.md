@@ -1,4 +1,4 @@
-# IXH26 – Universal Photo-Origin Validation Protocol
+# IXH26 – DECIMA: DECentralized IMage Authentication
 
 Project for the **IXH26 Italian XRPL Hackathon** (Bari, 20–21 November 2026), **Track 1 – Advanced Cryptography for Blockchain**.
 
