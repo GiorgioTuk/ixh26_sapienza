@@ -64,7 +64,8 @@ python -m decima.setup device                  # Setup: provision a device, manu
 python -m decima.capture.tokens buy 5          # Capture: buy prepaid blind tokens from the proxy
 python -m decima.capture                       # Capture: T0, frame, σs, σe, C over OHTTP, T1, DNG
 python -m decima.attestation                   # Attestation: proof + photo.jpg, raw.dng (pixels only), package.json
-python -m decima.verification                  # Verification
+python -m decima.verification                  # Verification, current-status mode
+python -m decima.verification --mode capture-time  # Verification, capture-time mode
 python -m decima.setup revoke <device> sensor  # a manufacturer revokes a key
 ```
 
@@ -98,7 +99,10 @@ python -m decima.setup revoke <device> sensor  # a manufacturer revokes a key
 - **Registries**: fixed-depth (20) SHA-256 Merkle trees for R_s and R_e and indexed Merkle trees for R_rev_s and R_rev_e, with domain-separated leaves and nodes.
   - The roots go in the makers' DIDs. DID Data is capped at 128 bytes, hence a binary layout.
   - The added leaves go in memos of the same transaction, so anyone can rebuild the trees.
-- **Valid roots**: a verifier accepts any R_s / R_e an admitted maker ever published (registries only grow), but only the current R_rev. Consequence: any revocation by a maker invalidates the earlier proofs of all its devices, which must be regenerated.
+- **Valid roots**: a verifier accepts any R_s / R_e an admitted maker ever published (registries only grow). For R_rev_s / R_rev_e it follows the verification mode (`--mode`):
+  - **current-status**: only the current roots. Any new revocation by a maker invalidates the earlier proofs of all its devices, which must be regenerated.
+  - **capture-time**: the roots valid at ledger M or any later ones. A key absent from a later set was also absent at M, which is why a proof made against the current roots passes both modes.
+  - `decima.attestation --roots capture-time` builds a proof against the roots at M, which never expires.
 - **Prepaid tokens**: RSA blind signatures (RFC 9474, RSABSSA-SHA384-PSS-Deterministic), bought with an on-chain payment of 0.01 XRP each. The proxy keeps the list of spent tokens.
 - **HPKE**: written out for OHTTP, because the response needs the HPKE secret export. It is tested against the `cryptography` implementation.
 - **Publication of C**: the proxy publishes each C right away in a memo of its own transaction. The user sends that transaction as T1, and the verifier accepts any validated transaction containing C.

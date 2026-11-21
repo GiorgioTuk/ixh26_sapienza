@@ -64,6 +64,7 @@ class MakerRegistry:
     kind: str | None = None
     leaves: list[bytes] = field(default_factory=list)          # H(pk), in registration order
     revoked: list[bytes] = field(default_factory=list)         # H(pk), in revocation order
+    revoked_ledgers: list[int] = field(default_factory=list)   # ledger index of each revocation
     onchain_root: bytes | None = None
     onchain_rev_root: bytes | None = None
     historic_roots: set[bytes] = field(default_factory=set)    # every R this maker ever published
@@ -75,6 +76,20 @@ class MakerRegistry:
     @property
     def rev_tree(self) -> merkle.IndexedTree:
         return merkle.IndexedTree.from_inserts(self.revoked)
+
+    def rev_root_at(self, ledger: int) -> bytes:
+        """R_rev as it was at a given ledger: only the revocations validated up to it."""
+        return merkle.IndexedTree.from_inserts(
+            [v for v, at in zip(self.revoked, self.revoked_ledgers) if at <= ledger]).root()
+
+    def rev_roots_since(self, ledger: int) -> set[bytes]:
+        """R_rev valid at the ledger and every later R_rev. Revocations are only added, so a key absent from a
+        later set was also absent at that ledger."""
+        roots = {self.rev_root_at(ledger)}
+        for at in self.revoked_ledgers:
+            if at > ledger:
+                roots.add(self.rev_root_at(at))
+        return roots
 
     @property
     def consistent(self) -> bool:
@@ -110,7 +125,9 @@ def load_maker(client: JsonRpcClient, address: str) -> MakerRegistry:
                     raise ValueError(f"registry {address}: leaves out of order")
                 reg.leaves += [batch[i:i + 32] for i in range(0, len(batch), 32)]
             elif memo_type == REVOKE_MEMO:
-                reg.revoked += [payload[i:i + 32] for i in range(0, len(payload), 32)]
+                new = [payload[i:i + 32] for i in range(0, len(payload), 32)]
+                reg.revoked += new
+                reg.revoked_ledgers += [int(entry["ledger_index"])] * len(new)
     decoded = _decode_registry(_did_data(client, address))
     if decoded:
         reg.kind, reg.onchain_root, reg.onchain_rev_root = decoded

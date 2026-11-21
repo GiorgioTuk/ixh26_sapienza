@@ -8,7 +8,12 @@ signatures and Merkle paths stay in the witness. Output, in out/published/<captu
   proof.json    the proof and its public inputs
   package.json  dev_params, declared pipeline, T1 (the transaction containing C)
 
-  python -m decima.attestation [capture-id]"""
+Revocation roots (README, Verification): with --roots current (default) the proof uses the current R_rev_s,
+R_rev_e and passes both verification modes, but it must be regenerated after any new revocation; with
+--roots capture-time it uses the roots valid at ledger M (T1), never expires, and passes capture-time
+verification only.
+
+  python -m decima.attestation [capture-id] [--roots current|capture-time]"""
 
 import argparse
 import json
@@ -49,6 +54,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(prog="python -m decima.attestation", description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("capture", nargs="?", help="capture id (default: latest)")
+    parser.add_argument("--roots", choices=["current", "capture-time"], default="current",
+                        help="revocation roots to prove against (default: current)")
     args = parser.parse_args()
     capture_id = args.capture or latest_capture()
     raw_pix, _, private = read_dng(CAPTURES_DIR / capture_id / "capture.dng")
@@ -68,17 +75,23 @@ def main() -> None:
     hs, he = H(bytes.fromhex(manifest["pk_s"])), H(bytes.fromhex(manifest["pk_e"]))
     reg_s = find_registry(client, trust["manufacturers"]["sensor"], hs)
     reg_e = find_registry(client, trust["manufacturers"]["enclave"], he)
+    m = private["T1"]["ledger_index"]
+    if args.roots == "capture-time":
+        rev_s, rev_e = (merkle.IndexedTree.from_inserts([v for v, at in zip(r.revoked, r.revoked_ledgers) if at <= m])
+                        for r in (reg_s, reg_e))
+    else:
+        rev_s, rev_e = reg_s.rev_tree, reg_e.rev_tree
     try:
-        nonmem_s, nonmem_e = reg_s.rev_tree.non_membership_witness(hs), reg_e.rev_tree.non_membership_witness(he)
+        nonmem_s, nonmem_e = rev_s.non_membership_witness(hs), rev_e.non_membership_witness(he)
     except KeyError:
-        raise SystemExit("a device key is revoked: H(pk) ∉ R_rev cannot be proven, no proof")
+        raise SystemExit(f"a device key is revoked ({args.roots} roots): H(pk) ∉ R_rev cannot be proven, no proof")
 
     S, tail = sha256.midstate(raw_pix.tobytes())   # the pixels are hashed outside the circuit
     dev_params = dev_params_of(metadata)
     public = {"S": S.hex(), "tail": tail.hex(), "dev_params": dev_params, "T0": private["T0"]["hash"],
               "C": private["C"], "pk_man": pk_bytes(pk_man).hex(), "R_s": reg_s.onchain_root.hex(),
-              "R_e": reg_e.onchain_root.hex(), "R_rev_s": reg_s.onchain_rev_root.hex(),
-              "R_rev_e": reg_e.onchain_rev_root.hex()}
+              "R_e": reg_e.onchain_root.hex(), "R_rev_s": rev_s.root().hex(),
+              "R_rev_e": rev_e.root().hex()}
     witness = {"metadata": metadata, "dev_manifest": manifest_bytes, "boot_manifest": private["boot_manifest"].encode(),
                "os_meta": private["os_meta"].encode(), "sigma_s": bytes.fromhex(private["sigma_s"]),
                "sigma_e": bytes.fromhex(private["sigma_e"]), "sigma_man": sigma_man,
@@ -97,7 +110,8 @@ def main() -> None:
     print(f"Attestation of capture {capture_id}")
     for name, ok in statement.relation(public, witness):
         print(f"  {'OK' if ok else 'FAIL':<4}  {name}")
-    print(f"\n  proof    {proof['system']}, circuit {proof['circuit']}")
+    print(f"\n  proof    {proof['system']}, circuit {proof['circuit']}, {args.roots} revocation roots"
+          f"{' (ledger M = ' + str(m) + ')' if args.roots == 'capture-time' else ''}")
     print(f"  public   S {public['S'][:16]}..., tail {len(tail)} B, dev_params {dev_params}")
     print(f"           T0 {public['T0'][:16]}..., C {public['C'][:16]}..., pk_man {public['pk_man'][:16]}...")
     print(f"           R_s {public['R_s'][:16]}..., R_e {public['R_e'][:16]}..., "

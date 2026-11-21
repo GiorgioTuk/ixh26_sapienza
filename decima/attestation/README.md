@@ -9,8 +9,10 @@ README, Attestation: the zero-knowledge proof and the package the user sends.
 | `__main__.py` | Builds public inputs (S and tail from the pixels, roots and pk_man from the ledger) and the witness, proves, writes the package |
 
 ```bash
-python -m decima.attestation [capture-id]
+python -m decima.attestation [capture-id] [--roots current|capture-time]
 ```
+
+`--roots current` (default) proves against the current revocation roots and passes both verification modes; `--roots capture-time` proves against the roots valid at ledger M and never expires.
 
 Output in `out/published/<id>/`: `photo.jpg`, `raw.dng` (pixels only), `proof.json`, `package.json` (dev_params, pipeline, T1).
 

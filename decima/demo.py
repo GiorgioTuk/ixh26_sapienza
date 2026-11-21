@@ -133,8 +133,14 @@ def main() -> None:
         victim_capture = capture_and_attest(victim, args.image, banner=False)
         step("Verify before the revocation", ["verification", victim_capture])
         step("The sensor maker revokes the sensor key", ["setup", "revoke", victim, "sensor"])
-        step("Verify the already-published package", ["verification", victim_capture], expect_ok=False)
-        step("Try to prove again with the revoked key", ["attestation", victim_capture], expect_ok=False)
+        step("Current-status verification of the published package",
+             ["verification", victim_capture, "--mode", "current-status"], expect_ok=False)
+        step("Capture-time verification of the same package (the photo predates the revocation)",
+             ["verification", victim_capture, "--mode", "capture-time"])
+        step("New proof against the current revocation roots", ["attestation", victim_capture], expect_ok=False)
+        step("New proof against the revocation roots at ledger M",
+             ["attestation", victim_capture, "--roots", "capture-time"])
+        step("Capture-time verification of the new proof", ["verification", victim_capture, "--mode", "capture-time"])
 
     phase("SUMMARY", f"{len(results)} steps in {time.time() - start:.0f} s")
     for label, expected, ok in results:
